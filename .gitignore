@@ -1,7 +1,5 @@
-*.o
-*.so
-tablify
-nobuild
-nobuild.old
+obj/*.o
+obj/*.so
+bin/*
 *.txt
 
