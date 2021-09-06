@@ -7,7 +7,7 @@ many setups as possible, but some basic remaps are provided to get you started.
 
 ## Cyborg_Tablify
 
-formats a markdown table and makes computations:
+Formats a markdown table and makes computations:
 
 ```vim
 nnoremap <leader>tf vip:!cyborg_tablify<cr>
@@ -52,6 +52,46 @@ screen.
 ```
 
 You can find out more about this tool in its own folder.
+
+## Cyborg_Tango
+
+Extracts source files from a markdown documents.
+
+```sh
+cat literate.md | tango
+```
+
+where the contents of `literate.md` are something like:
+
+````
+
+# A simple literate haskell program in markdown
+
+here we define a module
+
+```haskell { file=Main.hs }
+module Main where
+
+```
+
+And here's a simple main function
+
+```haskell { file=Main.hs }
+main :: IO ()
+main = putStrLn "Hello, World!"
+```
+
+````
+
+and the program will produce a file called `Main.hs` containing:
+
+```haskell { file=Main.hs }
+module Main where
+
+main :: IO ()
+main = putStrLn "Hello, World!"
+```
+
 
 ## To be continued ...
 

@@ -104,7 +104,7 @@ int main() {
   }
 
   for (size_t i = 0; i < v.len; i++) {
-    printf("file : ((" SV_FMT "))\n", SV_ARG(((file *)v.data)[i].name));
+    // printf("file : ((" SV_FMT "))\n", SV_ARG(((file *)v.data)[i].name));
     fclose(((file *)v.data)[i].stream);
   }
 
