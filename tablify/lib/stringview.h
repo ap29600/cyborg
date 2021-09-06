@@ -34,6 +34,7 @@ int sv_starts_with(string_view a, char *b);
 #endif // STRINGVIEW_H_
 
 #ifdef STRINGVIEW_IMPLEMENTATION
+#undef STRINGVIEW_IMPLEMENTATION
 
 string_view sv_str(char *data) {
   return (string_view){.len = strlen(data), .data = data};
@@ -148,5 +149,4 @@ int sv_len_utf_8(string_view s) {
   return ret;
 }
 
-#undef STRINGVIEW_IMPLEMENTATION
 #endif // STRINGVIEW_IMPLEMENTATION
