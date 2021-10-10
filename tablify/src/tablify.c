@@ -1,94 +1,98 @@
-#define _XOPEN_SOURCE 700
-#include "../lib/args.h"
-#include "../lib/stringview.h"
-#include <stdio.h>
-#define TABLIFY_IMPLEMENTATION
-#include "io.h"
+#include "../lib/stringview.c"
 #include "tablify.h"
+#include "printing.c"
+#include "data.c"
+#include "computation.c"
+#include <stdio.h>
 
-int main(int argc, char **argv) {
-  arg_string("--ignore", &ignore,
-             "The characters to ignore when determining if a line should "
-             "contain a separator.");
-  arg_string("--delim", &delim, "the table delimiter");
-  arg_string("--separators", &seps, "the line separator characters");
-  arg_string("--input", &input, "the input file");
-  arg_string("--output", &out_file, "the output file");
-  int help = 0;
-  arg_int("--help", &help, "print this help message");
-  arg_int("--compute", &compute,
-          "perform computations in cells that start with '='");
-  if (arg_parse(argc, argv))
-    return 1;
 
-  if (help) {
-    arg_print_usage(stdout);
-    return 0;
-  }
 
-  Sv f;
-  if (input) {
-    FILE *stream = fopen(input, "r");
-    f = sv_slurp_file(stream);
-    fclose(stream);
-  } else {
-    f = sv_slurp_stream(stdin);
-  }
+int main() {
+  string_view input = sv_from_stream(stdin);
+  table T = read_table(input);
+  calculate(&T);
+  print_table(T, stdout);
+}
 
-  // read the table once to get the dimensions.
-  // since all the global pointers are NULL
-  // nothing is written.
-  g = read_table(f);
+static table read_table(string_view input) {
+  table result = {NULL, 0, 0};
+  i_vector aligns = {0};
 
-  if (!g.x || !g.y) {
-    free(f.data);
-    return 0;
-  }
+  string_view tmp = input;
+  string_view line = {0};
+  size_t row = 0;
+  while(tmp.len) {
+    line = sv_trim(sv_split(&tmp, SV("\n")));
+    // throw away leading '|' and '+'
+    if (line.len > 0 && sv_has(sep_line_delimiters, line.data[0]))
+      line = sv_trim((string_view) {line.len - 1, line.data + 1});
 
-  // allocate a table for the SV's, an array for width info, and one for
-  // the separator positions.
-  table = calloc(g.x * g.y, sizeof(Cell));
-  width = calloc(g.x, sizeof(size_t));
-  align = calloc(g.x, sizeof(Align));
-  sep = calloc(g.y, 1);
+    if (line.len > 0 && line.data[0] == '<')
+        continue;
 
-  // read the table again, this time saving the cells.
-  read_table(f);
-
-  // dump_deps(g, table);
-
-  VecSV long_entries = {0};
-  if (compute) {
-    FILE *py = fopen("py.txt", "w");
-    print_computation_steps(py);
-    fclose(py);
-
-    FILE *p_out = popen("python py.txt", "r");
-
-    if (!p_out) {
-      printf("failure to get pipe\n");
+    if (is_separator(line)) {
+      size_t col = 0;
+      while (line.len) {
+        string_view token = sv_trim(sv_split_escaped(&line, sep_line_delimiters));
+        line = sv_trim(line);
+        if(token.len) {
+          align_t a = get_align(token);
+          // store the alignment for this column
+          ivec_insert(&aligns, a, col);
+          // insert the separator at location
+          table_insert(&result, (cell){ .sv = {0}, .align = a, .is_sep = 1 }, row, col);
+          // we will check the first entry to check whether a row is a separator row.
+          table_at(result, row, 0)->is_sep = 1;
+        }
+        col++;
+      }
+    } else {
+      size_t col = 0;
+      while (line.len) {
+        string_view token = sv_trim(sv_split_escaped(&line, table_delimiter));
+        line = sv_trim(line);
+        if (token.len) {
+          align_t a = DEDUCE;
+          if (aligns.len > col) 
+            a = aligns.data[col];
+          table_insert(&result, (cell){ .sv = token, .align = a, .is_sep = 0 }, row, col);
+        }
+        col++;
+      }
     }
-
-    string_view out = sv_slurp_stream(p_out);
-    pclose(p_out);
-
-    long_entries = splice_results(out);
-
-    // free(out.data);
+    row++;
   }
+  return result;
+}
 
-  FILE *output;
-  if (out_file)
-    output = fopen(out_file, "w");
-  else
-    output = stdout;
-  print_table(output);
-  print_long_entries(long_entries, output);
+static int is_separator(string_view line) {
+  int found = 0;
+  for(size_t i = 0; i<line.len; i++) {
+    if (!isspace(line.data[i]) && 
+        !sv_has(separators, line.data[i]))
+      return 0;
+    else if (!found && sv_has(separators, line.data[i])) {
+      found = 1;
+    }
+  }
+  return found;
+}
 
-  // cleanup
-  free(table);
-  free(width);
-  free(align);
-  free(sep);
-  free(f.data);
+align_t get_align(string_view sv) {
+  int marker_pos = -1;
+  for(size_t i = 0; i<sv.len; i++) 
+    if (sv.data[i] == ':') {
+      marker_pos = i;
+      break;
+    }
+  if (marker_pos >= 0) {
+    float ratio = (float)marker_pos / (float)(sv.len - 1);
+    // here there is a possibility for sv to have length 1.
+    // this results in ratio = (0/0) = NAN.
+    // in this case NAN > 0.5 returns false, and we align to the left.
+    if (ratio > 0.5) 
+      return RIGHT;
+    return LEFT;
+  } 
+  return DEDUCE;
 }
